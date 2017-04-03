@@ -5,7 +5,7 @@
 #include <SD.h>
 
 //Sensors and Switches
-int BtnPin = 2, BtnValue = 0, LCDBtnPin = 3; //Switches Pins and Values
+int BtnPin = 2, BtnValue = 2, LCDBtnPin = 3; //Switches Pins and Values
 int VoltagePin = 0, CurrentPin = 1, LightPin = 2; //Sensor Pins
 float Voltage = 0, Current = 0, Power = 0, Light = 0; //Sensor Values
 int Clock = 0; //Timer
@@ -25,6 +25,7 @@ void setup() {
   //Switches Mode
   pinMode(BtnPin, INPUT_PULLUP);
   pinMode(LCDBtnPin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(BtnPin), blink, LOW);
   //LCD SETUP
   lcd.begin (20, 4);
   lcd.setBacklightPin(3, POSITIVE);
@@ -45,13 +46,11 @@ void setup() {
 void loop() {
   LCDWrite(0, 0, "System Ready ", 0);
   LCDWrite(0, 3, "Measure", 0);
-  //Read Black Switch State
-  BtnValue = digitalRead(BtnPin);
   //Save LCD power by Actuating Red Switch
   lcd.setBacklight(!digitalRead(LCDBtnPin));
 
-  //Start Measurements When Black Switch if actuated
-  while (BtnValue == 0) {
+  //Start Measurements When Black Switch is actuated
+  while (BtnValue == 1) {
     //Create a new Excel file Staritng with datalog0
     FileName = "datalog" + String(TestNumber) + ".CSV";
     File dataFile = SD.open(FileName, FILE_WRITE);
@@ -66,9 +65,10 @@ void loop() {
     Power = Current * Voltage;
     Light = 1023 - analogRead(LightPin);
     //Start Writing data to File
-    if (Clock == 0){//First Line in the Excel Sheet
-        dataFile.println("Time,Voltage,Current,Power,Light");
-        dataFile.close();}
+    if (Clock == 0) { //First Line in the Excel Sheet
+      dataFile.println("Time,Voltage,Current,Power,Light");
+      dataFile.close();
+    }
     DataString = String(Clock) + "," + String(Voltage, 2) + "," + String(Current, 2) + "," + String(Power, 2) + "," + String(Light, 0);
     dataFile.println(DataString);//Print Sensor Data to SD Card
     dataFile.close();
@@ -76,16 +76,15 @@ void loop() {
     LCDData = String(Voltage, 2) + "V, " + String(Current, 2) + "A, " + String(Light, 0) + "L"; //Print Sensor Data to LCD
     LCDWrite(0, 1, LCDData, 0);
     //Increment  time on LCD every 1 minute
-    if (Clock % 60 == 0)
-      LCDWrite(0, 2, "Time Elapsed:" + String(Clock / 60) + " min", 0);
-    delay(1000);//Increment 1 second
+    LCDWrite(0, 2, "Time Elapsed:" + String(Clock) + " min", 0);
+    delay(60000);//Increment 1 minute
     Clock = Clock + 1;
-    if (Clock >= 5)// Stop Measurements after 5 sec if needed
+    if (Clock >= 1)// Stop Measurements after 1 minute if needed
       LCDWrite(0, 3, "Stop:" + FileName, 0);
     else
       LCDWrite(0, 3, "         ", 0);
-    //Stop button actuated at least after 5 sec
-    if (digitalRead(BtnPin) == 0 && Clock >= 5) {
+    //Stop button actuated at least after 1 minute
+    if (BtnValue == 0) {
       LCDWrite(0, 0, "Storing Data ", 1);
       TestNumber = TestNumber + 1;//Prepare for a new TestFile
       delay(3000);
@@ -93,6 +92,7 @@ void loop() {
       delay(3000);
       Clock = 0;//Reset Clock
       lcd.clear();
+      BtnValue = 2;
       break;
     }
   }
@@ -105,6 +105,10 @@ void LCDWrite(int r, int c, String message, int clearscreen) {
   lcd.setCursor ( r, c );
   lcd.print(message);
 }
-
-
-
+//Function : Interrupt and Stop Data Measurements
+void blink() {
+  if (Clock >= 1)
+    BtnValue = 0;
+  else
+    BtnValue = 1;
+}
