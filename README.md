@@ -4,4 +4,3 @@
 ![alt text](DataLoggerDevice.jpg)
 
 
-DataLoggerDevice.jpg
